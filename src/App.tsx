@@ -343,9 +343,14 @@ function DropPlaceholder({ onFile }: { onFile: (file: File) => void }) {
         if (f) onFile(f);
       }}
     >
-      画像 (png/jpg/webp) または PDF をここにドラッグ＆ドロップ、
+      <strong>無料・ブラウザ完結の OCR ツール</strong>
       <br />
-      もしくは画面上部の「ファイルを選択」から開いてください
+      写真 / 画像 (PNG / JPG / WebP) / PDF から日本語テキストを抽出できます。
+      <br />
+      ファイルはサーバーに送信されず、すべてブラウザ内で処理されます。
+      <br />
+      <br />
+      ここにファイルをドラッグ＆ドロップ、もしくは画面上部の「ファイルを選択」から開いてください。
     </div>
   );
 }

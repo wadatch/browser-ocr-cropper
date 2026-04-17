@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://wadatch.github.io/browser-ocr-cropper/sitemap.xml
