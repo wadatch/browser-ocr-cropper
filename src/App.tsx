@@ -2,16 +2,21 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { FileLoader } from './components/FileLoader';
 import { PageViewer } from './components/PageViewer';
 import { SidePanel } from './components/SidePanel';
+import { HelpPage } from './components/HelpPage';
+import { useHashRoute } from './hooks/useHashRoute';
 import { loadPdf } from './utils/pdf';
 import { recognizeCanvas } from './utils/ocr';
 import { cropCanvas } from './utils/crop';
 import type { LoadedSource, OCRResult, OCRSelection, Rect, WritingMode } from './types';
+
+const REPO_URL = 'https://github.com/wadatch/browser-ocr-cropper';
 
 function newId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
 export default function App() {
+  const route = useHashRoute();
   const [source, setSource] = useState<LoadedSource | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const [selections, setSelections] = useState<OCRSelection[]>([]);
@@ -120,59 +125,82 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1>Browser OCR Cropper</h1>
-        <FileLoader onFile={handleFile} />
-        {source && pageCount > 1 && (
-          <div className="page-controls">
-            <button
-              type="button"
-              onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
-              disabled={pageIndex === 0}
-            >
-              前へ
-            </button>
-            <span>
-              {pageIndex + 1} / {pageCount}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPageIndex((p) => Math.min(pageCount - 1, p + 1))}
-              disabled={pageIndex >= pageCount - 1}
-            >
-              次へ
-            </button>
-          </div>
+        <nav className="app-nav">
+          <a href="#/" className={route === 'app' ? 'active' : ''}>
+            アプリ
+          </a>
+          <a href="#/help" className={route === 'help' ? 'active' : ''}>
+            ヘルプ
+          </a>
+          <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
+            GitHub
+          </a>
+        </nav>
+        {route === 'app' && (
+          <>
+            <FileLoader onFile={handleFile} />
+            {source && pageCount > 1 && (
+              <div className="page-controls">
+                <button
+                  type="button"
+                  onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+                  disabled={pageIndex === 0}
+                >
+                  前へ
+                </button>
+                <span>
+                  {pageIndex + 1} / {pageCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPageIndex((p) => Math.min(pageCount - 1, p + 1))}
+                  disabled={pageIndex >= pageCount - 1}
+                >
+                  次へ
+                </button>
+              </div>
+            )}
+          </>
         )}
       </header>
 
-      {loadError && <div className="error-banner">{loadError}</div>}
+      {route === 'app' && loadError && <div className="error-banner">{loadError}</div>}
 
-      <main className="app-body">
-        <section className="viewer-area">
-          {source ? (
-            <PageViewer
-              source={source}
-              pageIndex={pageIndex}
-              selections={currentPageSelections}
-              onAddSelection={handleAddSelection}
-              onRemoveSelection={handleRemoveSelection}
-              onCanvasReady={handleCanvasReady}
-            />
-          ) : (
-            <div className="placeholder">画像 (png/jpg/webp) または PDF を選択してください</div>
-          )}
-        </section>
+      {route === 'help' ? (
+        <main className="app-body app-body-single">
+          <HelpPage />
+        </main>
+      ) : (
+        <main className="app-body">
+          <section className="viewer-area">
+            {source ? (
+              <PageViewer
+                source={source}
+                pageIndex={pageIndex}
+                selections={currentPageSelections}
+                onAddSelection={handleAddSelection}
+                onRemoveSelection={handleRemoveSelection}
+                onCanvasReady={handleCanvasReady}
+              />
+            ) : (
+              <div className="placeholder">
+                画像 (png/jpg/webp) または PDF を選択してください
+              </div>
+            )}
+          </section>
 
-        <SidePanel
-          selections={selections}
-          results={results}
-          currentPageIndex={pageIndex}
-          onJumpToPage={setPageIndex}
-          onUpdateLabel={handleUpdateLabel}
-          onUpdateWritingMode={handleUpdateWritingMode}
-          onRemove={handleRemoveSelection}
-          onRunOcr={handleRunOcr}
-        />
-      </main>
+          <SidePanel
+            selections={selections}
+            results={results}
+            currentPageIndex={pageIndex}
+            onJumpToPage={setPageIndex}
+            onUpdateLabel={handleUpdateLabel}
+            onUpdateWritingMode={handleUpdateWritingMode}
+            onRemove={handleRemoveSelection}
+            onRunOcr={handleRunOcr}
+          />
+        </main>
+      )}
 
       <AppFooter />
     </div>
