@@ -141,7 +141,7 @@ export function PageViewer({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
       const sel = selections.find((s) => s.id === quadDrag.selectionId);
       if (!sel || !sel.quad) return;
       const p = toCanvasCoords(e.clientX, e.clientY);
@@ -154,27 +154,30 @@ export function PageViewer({
     };
     const onUp = () => setQuadDrag(null);
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
     };
   }, [quadDrag, selections, toCanvasCoords, onUpdateQuad]);
 
-  const onMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     const p = toCanvasCoords(e.clientX, e.clientY);
     setDrag({ start: p, current: p });
   };
 
-  const onMouseMove = (e: React.MouseEvent) => {
+  const onPointerMove = (e: React.PointerEvent) => {
     if (!drag) return;
     const p = toCanvasCoords(e.clientX, e.clientY);
     setDrag({ start: drag.start, current: p });
   };
 
-  const onMouseUp = () => {
+  const onPointerUp = () => {
     if (!drag) return;
     const r: Rect = {
       x: Math.min(drag.start.x, drag.current.x),
@@ -200,10 +203,11 @@ export function PageViewer({
       <canvas ref={canvasRef} className="viewer-canvas" />
       <div
         className="viewer-overlay"
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        onMouseLeave={onMouseUp}
+        style={{ touchAction: 'none' }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
       >
         {selections.map((sel) => {
           const d = toDisplayRect(sel.rect);
@@ -231,7 +235,7 @@ export function PageViewer({
                 <QuadOverlay
                   quad={sel.quad}
                   toDisplayPoint={toDisplayPoint}
-                  onCornerMouseDown={(idx, e) => {
+                  onCornerPointerDown={(idx, e) => {
                     e.stopPropagation();
                     setQuadDrag({ selectionId: sel.id, cornerIndex: idx });
                   }}
@@ -257,11 +261,11 @@ export function PageViewer({
 function QuadOverlay({
   quad,
   toDisplayPoint,
-  onCornerMouseDown,
+  onCornerPointerDown,
 }: {
   quad: Quad;
   toDisplayPoint: (p: [number, number]) => { left: number; top: number };
-  onCornerMouseDown: (cornerIndex: 0 | 1 | 2 | 3, e: React.MouseEvent) => void;
+  onCornerPointerDown: (cornerIndex: 0 | 1 | 2 | 3, e: React.PointerEvent) => void;
 }) {
   const display = quad.map(toDisplayPoint);
   const points = display.map((p) => `${p.left},${p.top}`).join(' ');
@@ -276,8 +280,8 @@ function QuadOverlay({
           key={i}
           type="button"
           className="quad-handle"
-          style={{ left: p.left, top: p.top }}
-          onMouseDown={(e) => onCornerMouseDown(i as 0 | 1 | 2 | 3, e)}
+          style={{ left: p.left, top: p.top, touchAction: 'none' }}
+          onPointerDown={(e) => onCornerPointerDown(i as 0 | 1 | 2 | 3, e)}
           aria-label={`corner ${i + 1}`}
         />
       ))}
