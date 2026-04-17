@@ -3,10 +3,17 @@ import type { OCRResult, OCRSelection, WritingMode } from '../types';
 interface Props {
   selections: OCRSelection[];
   results: Record<string, OCRResult>;
+  previews: Record<string, string>;
   currentPageIndex: number;
   onJumpToPage: (pageIndex: number) => void;
   onUpdateLabel: (id: string, label: string) => void;
   onUpdateWritingMode: (id: string, writingMode: WritingMode) => void;
+  onUpdatePreprocess: (
+    id: string,
+    patch: Partial<Pick<OCRSelection, 'deskew' | 'binarize' | 'perspective'>>,
+  ) => void;
+  onGeneratePreview: (id: string) => void;
+  onClearPreview: (id: string) => void;
   onRemove: (id: string) => void;
   onRunOcr: (id: string) => void;
 }
@@ -14,10 +21,14 @@ interface Props {
 export function SidePanel({
   selections,
   results,
+  previews,
   currentPageIndex,
   onJumpToPage,
   onUpdateLabel,
   onUpdateWritingMode,
+  onUpdatePreprocess,
+  onGeneratePreview,
+  onClearPreview,
   onRemove,
   onRunOcr,
 }: Props) {
@@ -92,6 +103,60 @@ export function SidePanel({
                   {result?.status === 'running' ? '実行中…' : 'OCR実行'}
                 </button>
               </div>
+              <div className="selection-preprocess">
+                <label title="OCR 前に小さい角度の傾きを自動補正します (やや時間がかかります)">
+                  <input
+                    type="checkbox"
+                    checked={sel.deskew}
+                    onChange={(e) => onUpdatePreprocess(sel.id, { deskew: e.target.checked })}
+                  />
+                  傾き補正
+                </label>
+                <label title="Otsu 法で白黒の閾値を自動調整して二値化します">
+                  <input
+                    type="checkbox"
+                    checked={sel.binarize}
+                    onChange={(e) => onUpdatePreprocess(sel.id, { binarize: e.target.checked })}
+                  />
+                  白黒補正
+                </label>
+                <label title="ページ上に表示される 4 つの隅をドラッグして台形を指定すると、矩形に変形してから OCR します">
+                  <input
+                    type="checkbox"
+                    checked={sel.perspective}
+                    onChange={(e) =>
+                      onUpdatePreprocess(sel.id, { perspective: e.target.checked })
+                    }
+                  />
+                  台形補正
+                </label>
+                <button
+                  type="button"
+                  className="preview-btn"
+                  disabled={!isCurrentPage}
+                  onClick={() => onGeneratePreview(sel.id)}
+                  title={
+                    isCurrentPage
+                      ? '補正後の画像を生成して表示'
+                      : 'プレビューは対象ページに切り替えてから生成できます'
+                  }
+                >
+                  プレビュー
+                </button>
+              </div>
+              {previews[sel.id] && (
+                <div className="selection-preview">
+                  <img src={previews[sel.id]} alt={`${sel.label} の補正プレビュー`} />
+                  <button
+                    type="button"
+                    className="preview-close"
+                    onClick={() => onClearPreview(sel.id)}
+                    aria-label="プレビューを閉じる"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
               <ResultView result={result} />
             </li>
           );

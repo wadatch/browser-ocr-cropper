@@ -8,7 +8,33 @@ import { copyrightInfo } from './config/copyright';
 import { loadPdf } from './utils/pdf';
 import { recognizeCanvas } from './utils/ocr';
 import { cropCanvas } from './utils/crop';
-import type { LoadedSource, OCRResult, OCRSelection, Rect, WritingMode } from './types';
+import { binarizeOtsu, deskew, perspectiveWarp } from './utils/preprocess';
+import type { LoadedSource, OCRResult, OCRSelection, Quad, Rect, WritingMode } from './types';
+
+function rectToQuad(rect: Rect): Quad {
+  return [
+    [rect.x, rect.y],
+    [rect.x + rect.width, rect.y],
+    [rect.x + rect.width, rect.y + rect.height],
+    [rect.x, rect.y + rect.height],
+  ];
+}
+
+function preprocessSelection(
+  pageCanvas: HTMLCanvasElement,
+  sel: OCRSelection,
+): HTMLCanvasElement {
+  let processed: HTMLCanvasElement;
+  if (sel.perspective && sel.quad) {
+    // Perspective warp the source quad directly from the page canvas.
+    processed = perspectiveWarp(pageCanvas, sel.quad);
+  } else {
+    processed = cropCanvas(pageCanvas, sel.rect);
+  }
+  if (sel.deskew) processed = deskew(processed, sel.writingMode);
+  if (sel.binarize) processed = binarizeOtsu(processed);
+  return processed;
+}
 
 const REPO_URL = 'https://github.com/wadatch/browser-ocr-cropper';
 const CORP_URL = 'https://corp.mis.dev';
@@ -34,6 +60,7 @@ export default function App() {
   const [pageIndex, setPageIndex] = useState(0);
   const [selections, setSelections] = useState<OCRSelection[]>([]);
   const [results, setResults] = useState<Record<string, OCRResult>>({});
+  const [previews, setPreviews] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const currentCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -72,6 +99,10 @@ export default function App() {
           label: `範囲 ${pageIndex + 1}-${onPage + 1}`,
           rect,
           writingMode: 'horizontal',
+          deskew: false,
+          binarize: false,
+          perspective: false,
+          quad: null,
         };
         return [...prev, sel];
       });
@@ -85,6 +116,10 @@ export default function App() {
       const { [id]: _omit, ...rest } = prev;
       return rest;
     });
+    setPreviews((prev) => {
+      const { [id]: _omit, ...rest } = prev;
+      return rest;
+    });
   }, []);
 
   const handleUpdateLabel = useCallback((id: string, label: string) => {
@@ -93,6 +128,62 @@ export default function App() {
 
   const handleUpdateWritingMode = useCallback((id: string, writingMode: WritingMode) => {
     setSelections((prev) => prev.map((s) => (s.id === id ? { ...s, writingMode } : s)));
+  }, []);
+
+  const handleUpdatePreprocess = useCallback(
+    (
+      id: string,
+      patch: Partial<Pick<OCRSelection, 'deskew' | 'binarize' | 'perspective'>>,
+    ) => {
+      setSelections((prev) =>
+        prev.map((s) => {
+          if (s.id !== id) return s;
+          const next: OCRSelection = { ...s, ...patch };
+          // Initialize quad from rect on the first time perspective is enabled.
+          if (patch.perspective && !s.quad) next.quad = rectToQuad(s.rect);
+          return next;
+        }),
+      );
+      // Invalidate the preview so the user re-generates with the new settings.
+      setPreviews((prev) => {
+        if (!(id in prev)) return prev;
+        const { [id]: _omit, ...rest } = prev;
+        return rest;
+      });
+    },
+    [],
+  );
+
+  const handleUpdateQuad = useCallback((id: string, quad: Quad) => {
+    setSelections((prev) => prev.map((s) => (s.id === id ? { ...s, quad } : s)));
+    setPreviews((prev) => {
+      if (!(id in prev)) return prev;
+      const { [id]: _omit, ...rest } = prev;
+      return rest;
+    });
+  }, []);
+
+  const handleGeneratePreview = useCallback(
+    (id: string) => {
+      const sel = selections.find((s) => s.id === id);
+      const canvas = currentCanvasRef.current;
+      if (!sel || !canvas || sel.pageIndex !== pageIndex) return;
+      try {
+        const processed = preprocessSelection(canvas, sel);
+        setPreviews((prev) => ({ ...prev, [id]: processed.toDataURL() }));
+      } catch (err) {
+        console.error('Preview generation failed', err);
+      }
+    },
+    [selections, pageIndex],
+  );
+
+  const handleClearPreview = useCallback((id: string) => {
+    setPreviews((prev) => {
+      if (!(id in prev)) return prev;
+      const { [id]: _omit, ...rest } = prev;
+      return rest;
+    });
   }, []);
 
   const handleRunOcr = useCallback(
@@ -110,8 +201,8 @@ export default function App() {
 
       setResults((prev) => ({ ...prev, [id]: { status: 'running', text: '' } }));
       try {
-        const cropped = cropCanvas(canvas, sel.rect);
-        const text = await recognizeCanvas(cropped, { writingMode: sel.writingMode });
+        const processed = preprocessSelection(canvas, sel);
+        const text = await recognizeCanvas(processed, { writingMode: sel.writingMode });
         setResults((prev) => ({ ...prev, [id]: { status: 'done', text } }));
       } catch (err) {
         console.error(err);
@@ -193,6 +284,7 @@ export default function App() {
                 selections={currentPageSelections}
                 onAddSelection={handleAddSelection}
                 onRemoveSelection={handleRemoveSelection}
+                onUpdateQuad={handleUpdateQuad}
                 onCanvasReady={handleCanvasReady}
               />
             ) : (
@@ -203,10 +295,14 @@ export default function App() {
           <SidePanel
             selections={selections}
             results={results}
+            previews={previews}
             currentPageIndex={pageIndex}
             onJumpToPage={setPageIndex}
             onUpdateLabel={handleUpdateLabel}
             onUpdateWritingMode={handleUpdateWritingMode}
+            onUpdatePreprocess={handleUpdatePreprocess}
+            onGeneratePreview={handleGeneratePreview}
+            onClearPreview={handleClearPreview}
             onRemove={handleRemoveSelection}
             onRunOcr={handleRunOcr}
           />

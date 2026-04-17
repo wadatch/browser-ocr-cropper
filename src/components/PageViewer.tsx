@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { RenderTask } from 'pdfjs-dist';
-import type { LoadedSource, OCRSelection, Rect } from '../types';
+import type { LoadedSource, OCRSelection, Quad, Rect } from '../types';
 import { isRenderingCancelled, startPdfPageRender } from '../utils/pdf';
 
 interface Props {
@@ -9,12 +9,18 @@ interface Props {
   selections: OCRSelection[];
   onAddSelection: (rect: Rect) => void;
   onRemoveSelection: (id: string) => void;
+  onUpdateQuad: (id: string, quad: Quad) => void;
   onCanvasReady: (canvas: HTMLCanvasElement) => void;
 }
 
-interface Drag {
+interface RectDrag {
   start: { x: number; y: number };
   current: { x: number; y: number };
+}
+
+interface QuadDrag {
+  selectionId: string;
+  cornerIndex: 0 | 1 | 2 | 3;
 }
 
 const PDF_RENDER_SCALE = 1.5;
@@ -25,11 +31,13 @@ export function PageViewer({
   selections,
   onAddSelection,
   onRemoveSelection,
+  onUpdateQuad,
   onCanvasReady,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
-  const [drag, setDrag] = useState<Drag | null>(null);
+  const [drag, setDrag] = useState<RectDrag | null>(null);
+  const [quadDrag, setQuadDrag] = useState<QuadDrag | null>(null);
   // Bumped after each render so positioning calculations re-run.
   const [renderTick, setRenderTick] = useState(0);
 
@@ -114,6 +122,46 @@ export function PageViewer({
     [renderTick],
   );
 
+  const toDisplayPoint = useCallback(
+    (p: [number, number]) => {
+      const canvas = canvasRef.current;
+      if (!canvas || canvas.width === 0) return { left: 0, top: 0 };
+      const bounds = canvas.getBoundingClientRect();
+      const sx = bounds.width / canvas.width;
+      const sy = bounds.height / canvas.height;
+      return { left: p[0] * sx, top: p[1] * sy };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [renderTick],
+  );
+
+  // Window-level drag for quad corner handles, so the user can drag past the overlay.
+  useEffect(() => {
+    if (!quadDrag) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const onMove = (e: MouseEvent) => {
+      const sel = selections.find((s) => s.id === quadDrag.selectionId);
+      if (!sel || !sel.quad) return;
+      const p = toCanvasCoords(e.clientX, e.clientY);
+      const clampedX = Math.max(0, Math.min(canvas.width, p.x));
+      const clampedY = Math.max(0, Math.min(canvas.height, p.y));
+      const next = sel.quad.map((c, i) =>
+        i === quadDrag.cornerIndex ? [clampedX, clampedY] : c,
+      ) as Quad;
+      onUpdateQuad(sel.id, next);
+    };
+    const onUp = () => setQuadDrag(null);
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [quadDrag, selections, toCanvasCoords, onUpdateQuad]);
+
   const onMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
     const p = toCanvasCoords(e.clientX, e.clientY);
@@ -159,24 +207,36 @@ export function PageViewer({
       >
         {selections.map((sel) => {
           const d = toDisplayRect(sel.rect);
+          const showQuad = sel.perspective && sel.quad;
           return (
-            <div
-              key={sel.id}
-              className="selection-box"
-              style={{ left: d.left, top: d.top, width: d.width, height: d.height }}
-            >
-              <span className="selection-label">{sel.label}</span>
-              <button
-                type="button"
-                className="selection-remove"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemoveSelection(sel.id);
-                }}
+            <div key={sel.id}>
+              <div
+                className="selection-box"
+                style={{ left: d.left, top: d.top, width: d.width, height: d.height }}
               >
-                ×
-              </button>
+                <span className="selection-label">{sel.label}</span>
+                <button
+                  type="button"
+                  className="selection-remove"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveSelection(sel.id);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              {showQuad && sel.quad && (
+                <QuadOverlay
+                  quad={sel.quad}
+                  toDisplayPoint={toDisplayPoint}
+                  onCornerMouseDown={(idx, e) => {
+                    e.stopPropagation();
+                    setQuadDrag({ selectionId: sel.id, cornerIndex: idx });
+                  }}
+                />
+              )}
             </div>
           );
         })}
@@ -191,5 +251,36 @@ export function PageViewer({
         })()}
       </div>
     </div>
+  );
+}
+
+function QuadOverlay({
+  quad,
+  toDisplayPoint,
+  onCornerMouseDown,
+}: {
+  quad: Quad;
+  toDisplayPoint: (p: [number, number]) => { left: number; top: number };
+  onCornerMouseDown: (cornerIndex: 0 | 1 | 2 | 3, e: React.MouseEvent) => void;
+}) {
+  const display = quad.map(toDisplayPoint);
+  const points = display.map((p) => `${p.left},${p.top}`).join(' ');
+
+  return (
+    <>
+      <svg className="quad-overlay" aria-hidden="true">
+        <polygon points={points} />
+      </svg>
+      {display.map((p, i) => (
+        <button
+          key={i}
+          type="button"
+          className="quad-handle"
+          style={{ left: p.left, top: p.top }}
+          onMouseDown={(e) => onCornerMouseDown(i as 0 | 1 | 2 | 3, e)}
+          aria-label={`corner ${i + 1}`}
+        />
+      ))}
+    </>
   );
 }

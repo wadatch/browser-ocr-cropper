@@ -9,6 +9,14 @@ export interface Rect {
 
 export type WritingMode = 'horizontal' | 'vertical';
 
+/** Four corners of a quadrilateral in TL, TR, BR, BL order, canvas-pixel coords. */
+export type Quad = [
+  [number, number],
+  [number, number],
+  [number, number],
+  [number, number],
+];
+
 export interface OCRSelection {
   id: string;
   pageIndex: number;
@@ -16,6 +24,10 @@ export interface OCRSelection {
   /** Coordinates are in canvas-internal pixels for the page render at the time of creation. */
   rect: Rect;
   writingMode: WritingMode;
+  deskew: boolean;
+  binarize: boolean;
+  perspective: boolean;
+  quad: Quad | null;
 }
 
 export type OCRStatus = 'idle' | 'running' | 'done' | 'error';
