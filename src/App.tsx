@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FileLoader } from './components/FileLoader';
 import { PageViewer } from './components/PageViewer';
 import { SidePanel } from './components/SidePanel';
@@ -20,6 +20,17 @@ function newId(): string {
 export default function App() {
   const route = useHashRoute();
   const [source, setSource] = useState<LoadedSource | null>(null);
+
+  // Prevent the browser from navigating to a dropped file when the user misses the drop zone.
+  useEffect(() => {
+    const prevent = (e: DragEvent) => e.preventDefault();
+    window.addEventListener('dragover', prevent);
+    window.addEventListener('drop', prevent);
+    return () => {
+      window.removeEventListener('dragover', prevent);
+      window.removeEventListener('drop', prevent);
+    };
+  }, []);
   const [pageIndex, setPageIndex] = useState(0);
   const [selections, setSelections] = useState<OCRSelection[]>([]);
   const [results, setResults] = useState<Record<string, OCRResult>>({});
@@ -185,9 +196,7 @@ export default function App() {
                 onCanvasReady={handleCanvasReady}
               />
             ) : (
-              <div className="placeholder">
-                画像 (png/jpg/webp) または PDF を選択してください
-              </div>
+              <DropPlaceholder onFile={handleFile} />
             )}
           </section>
 
@@ -205,6 +214,42 @@ export default function App() {
       )}
 
       <AppFooter />
+    </div>
+  );
+}
+
+function DropPlaceholder({ onFile }: { onFile: (file: File) => void }) {
+  const [active, setActive] = useState(false);
+  const dragDepth = useRef(0);
+
+  return (
+    <div
+      className={`placeholder${active ? ' placeholder-active' : ''}`}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        dragDepth.current += 1;
+        setActive(true);
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setActive(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        dragDepth.current = 0;
+        setActive(false);
+        const f = e.dataTransfer.files?.[0];
+        if (f) onFile(f);
+      }}
+    >
+      画像 (png/jpg/webp) または PDF をここにドラッグ＆ドロップ、
+      <br />
+      もしくは画面上部の「ファイルを選択」から開いてください
     </div>
   );
 }
