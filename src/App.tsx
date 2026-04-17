@@ -173,6 +173,54 @@ export default function App() {
           onRunOcr={handleRunOcr}
         />
       </main>
+
+      <AppFooter />
     </div>
+  );
+}
+
+function AppFooter() {
+  return (
+    <footer className="app-footer">
+      <div className="app-footer-left">
+        © <a href="https://github.com/wadatch" target="_blank" rel="noopener noreferrer">wadatch</a>
+      </div>
+      <ul className="app-footer-licenses">
+        <li>
+          <a href="https://github.com/naptha/tesseract.js" target="_blank" rel="noopener noreferrer">
+            Tesseract.js
+          </a>{' '}
+          (Apache-2.0)
+        </li>
+        <li>
+          <a
+            href="https://github.com/tesseract-ocr/tessdata"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            tessdata (jpn / jpn_vert)
+          </a>{' '}
+          (Apache-2.0)
+        </li>
+        <li>
+          <a href="https://github.com/mozilla/pdf.js" target="_blank" rel="noopener noreferrer">
+            pdf.js
+          </a>{' '}
+          (Apache-2.0)
+        </li>
+        <li>
+          <a href="https://github.com/facebook/react" target="_blank" rel="noopener noreferrer">
+            React
+          </a>{' '}
+          (MIT)
+        </li>
+        <li>
+          <a href="https://github.com/vitejs/vite" target="_blank" rel="noopener noreferrer">
+            Vite
+          </a>{' '}
+          (MIT)
+        </li>
+      </ul>
+    </footer>
   );
 }
