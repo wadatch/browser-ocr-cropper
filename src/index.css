@@ -650,6 +650,25 @@ body,
   margin-bottom: 24px;
 }
 
+.help-callout {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-left: 4px solid #10b981;
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 28px;
+}
+
+.help-callout h2 {
+  border: none;
+  margin-top: 0;
+  color: #065f46;
+}
+
+.help-callout p {
+  margin: 0 0 10px;
+}
+
 .help-page h2 {
   font-size: 16px;
   margin: 0 0 8px;
