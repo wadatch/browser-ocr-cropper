@@ -5,7 +5,7 @@ import { SidePanel } from './components/SidePanel';
 import { loadPdf } from './utils/pdf';
 import { recognizeCanvas } from './utils/ocr';
 import { cropCanvas } from './utils/crop';
-import type { LoadedSource, OCRResult, OCRSelection, Rect } from './types';
+import type { LoadedSource, OCRResult, OCRSelection, Rect, WritingMode } from './types';
 
 function newId(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -53,6 +53,7 @@ export default function App() {
           pageIndex,
           label: `範囲 ${pageIndex + 1}-${onPage + 1}`,
           rect,
+          writingMode: 'horizontal',
         };
         return [...prev, sel];
       });
@@ -72,6 +73,10 @@ export default function App() {
     setSelections((prev) => prev.map((s) => (s.id === id ? { ...s, label } : s)));
   }, []);
 
+  const handleUpdateWritingMode = useCallback((id: string, writingMode: WritingMode) => {
+    setSelections((prev) => prev.map((s) => (s.id === id ? { ...s, writingMode } : s)));
+  }, []);
+
   const handleRunOcr = useCallback(
     async (id: string) => {
       const sel = selections.find((s) => s.id === id);
@@ -88,7 +93,7 @@ export default function App() {
       setResults((prev) => ({ ...prev, [id]: { status: 'running', text: '' } }));
       try {
         const cropped = cropCanvas(canvas, sel.rect);
-        const text = await recognizeCanvas(cropped);
+        const text = await recognizeCanvas(cropped, { writingMode: sel.writingMode });
         setResults((prev) => ({ ...prev, [id]: { status: 'done', text } }));
       } catch (err) {
         console.error(err);
@@ -163,6 +168,7 @@ export default function App() {
           currentPageIndex={pageIndex}
           onJumpToPage={setPageIndex}
           onUpdateLabel={handleUpdateLabel}
+          onUpdateWritingMode={handleUpdateWritingMode}
           onRemove={handleRemoveSelection}
           onRunOcr={handleRunOcr}
         />

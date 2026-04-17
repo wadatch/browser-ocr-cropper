@@ -9,17 +9,21 @@ export async function loadPdf(file: File): Promise<pdfjsLib.PDFDocumentProxy> {
   return task.promise;
 }
 
-export async function renderPdfPage(
+export async function startPdfPageRender(
   doc: pdfjsLib.PDFDocumentProxy,
   pageIndex: number,
   canvas: HTMLCanvasElement,
   scale: number,
-): Promise<void> {
+): Promise<pdfjsLib.RenderTask> {
   const page = await doc.getPage(pageIndex + 1);
   const viewport = page.getViewport({ scale });
   canvas.width = Math.floor(viewport.width);
   canvas.height = Math.floor(viewport.height);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context not available');
-  await page.render({ canvasContext: ctx, viewport }).promise;
+  return page.render({ canvasContext: ctx, viewport });
+}
+
+export function isRenderingCancelled(err: unknown): boolean {
+  return err instanceof Error && err.name === 'RenderingCancelledException';
 }

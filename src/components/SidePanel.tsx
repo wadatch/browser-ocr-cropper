@@ -1,4 +1,4 @@
-import type { OCRResult, OCRSelection } from '../types';
+import type { OCRResult, OCRSelection, WritingMode } from '../types';
 
 interface Props {
   selections: OCRSelection[];
@@ -6,6 +6,7 @@ interface Props {
   currentPageIndex: number;
   onJumpToPage: (pageIndex: number) => void;
   onUpdateLabel: (id: string, label: string) => void;
+  onUpdateWritingMode: (id: string, writingMode: WritingMode) => void;
   onRemove: (id: string) => void;
   onRunOcr: (id: string) => void;
 }
@@ -16,6 +17,7 @@ export function SidePanel({
   currentPageIndex,
   onJumpToPage,
   onUpdateLabel,
+  onUpdateWritingMode,
   onRemove,
   onRunOcr,
 }: Props) {
@@ -56,18 +58,38 @@ export function SidePanel({
                 </button>
                 <button
                   type="button"
+                  className="remove"
+                  onClick={() => onRemove(sel.id)}
+                >
+                  削除
+                </button>
+              </div>
+              <div className="selection-item-controls">
+                <div className="writing-mode-toggle" role="group" aria-label="書字方向">
+                  <button
+                    type="button"
+                    className={sel.writingMode === 'horizontal' ? 'active' : ''}
+                    onClick={() => onUpdateWritingMode(sel.id, 'horizontal')}
+                    title="横書き (jpn)"
+                  >
+                    横書き
+                  </button>
+                  <button
+                    type="button"
+                    className={sel.writingMode === 'vertical' ? 'active' : ''}
+                    onClick={() => onUpdateWritingMode(sel.id, 'vertical')}
+                    title="縦書き (jpn_vert)"
+                  >
+                    縦書き
+                  </button>
+                </div>
+                <button
+                  type="button"
                   className="run-ocr"
                   disabled={result?.status === 'running'}
                   onClick={() => onRunOcr(sel.id)}
                 >
                   {result?.status === 'running' ? '実行中…' : 'OCR実行'}
-                </button>
-                <button
-                  type="button"
-                  className="remove"
-                  onClick={() => onRemove(sel.id)}
-                >
-                  削除
                 </button>
               </div>
               <ResultView result={result} />

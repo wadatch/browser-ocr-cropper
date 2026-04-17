@@ -7,12 +7,15 @@ export interface Rect {
   height: number;
 }
 
+export type WritingMode = 'horizontal' | 'vertical';
+
 export interface OCRSelection {
   id: string;
   pageIndex: number;
   label: string;
   /** Coordinates are in canvas-internal pixels for the page render at the time of creation. */
   rect: Rect;
+  writingMode: WritingMode;
 }
 
 export type OCRStatus = 'idle' | 'running' | 'done' | 'error';

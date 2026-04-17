@@ -206,6 +206,39 @@ body,
   margin-bottom: 6px;
 }
 
+.selection-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.writing-mode-toggle {
+  display: inline-flex;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.writing-mode-toggle button {
+  background: #fff;
+  color: #374151;
+  border: none;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.writing-mode-toggle button + button {
+  border-left: 1px solid #d1d5db;
+}
+
+.writing-mode-toggle button.active {
+  background: #2563eb;
+  color: #fff;
+}
+
 .selection-label-input {
   flex: 1 1 120px;
   min-width: 0;

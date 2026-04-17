@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type { RenderTask } from 'pdfjs-dist';
 import type { LoadedSource, OCRSelection, Rect } from '../types';
-import { renderPdfPage } from '../utils/pdf';
+import { isRenderingCancelled, startPdfPageRender } from '../utils/pdf';
 
 interface Props {
   source: LoadedSource;
@@ -27,6 +28,7 @@ export function PageViewer({
   onCanvasReady,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const renderTaskRef = useRef<RenderTask | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   // Bumped after each render so positioning calculations re-run.
   const [renderTick, setRenderTick] = useState(0);
@@ -36,6 +38,11 @@ export function PageViewer({
     if (!canvas) return;
     let cancelled = false;
 
+    // Cancel any in-flight pdfjs render before starting a new one
+    // (StrictMode double-invokes effects in dev).
+    renderTaskRef.current?.cancel();
+    renderTaskRef.current = null;
+
     (async () => {
       if (source.kind === 'image') {
         canvas.width = source.bitmap.width;
@@ -43,7 +50,22 @@ export function PageViewer({
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(source.bitmap, 0, 0);
       } else {
-        await renderPdfPage(source.doc, pageIndex, canvas, PDF_RENDER_SCALE);
+        const task = await startPdfPageRender(source.doc, pageIndex, canvas, PDF_RENDER_SCALE);
+        if (cancelled) {
+          task.cancel();
+          // Swallow the rejection from cancel() so it doesn't surface as an unhandled rejection.
+          task.promise.catch(() => {});
+          return;
+        }
+        renderTaskRef.current = task;
+        try {
+          await task.promise;
+        } catch (err) {
+          if (isRenderingCancelled(err)) return;
+          throw err;
+        } finally {
+          if (renderTaskRef.current === task) renderTaskRef.current = null;
+        }
       }
       if (cancelled) return;
       onCanvasReady(canvas);
@@ -54,6 +76,8 @@ export function PageViewer({
 
     return () => {
       cancelled = true;
+      renderTaskRef.current?.cancel();
+      renderTaskRef.current = null;
     };
   }, [source, pageIndex, onCanvasReady]);
 
